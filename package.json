@@ -6,6 +6,7 @@
   "scripts": {
     "start": "nodemon server.js",
     "dev": "nodemon src/server.ts",
+    "build": "tsc",
     "migrate:password-reset": "ts-node src/scripts/add-password-reset-fields.ts"
   },
   "author": "Felipe Muñoz V.",
