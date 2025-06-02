@@ -8,6 +8,32 @@ import { JWTService } from '../services/jwtService';
 // Inicializar modelos
 const { User } = initModels(sequelize);
 
+// Función para validar contraseña fuerte (consistente con el modelo)
+const validateStrongPassword = (password: string): { isValid: boolean; message?: string } => {
+  if (password.length < 8) {
+    return {
+      isValid: false,
+      message: 'La contraseña debe tener al menos 8 caracteres'
+    };
+  }
+
+  if (password.length > 100) {
+    return {
+      isValid: false,
+      message: 'La contraseña no puede tener más de 100 caracteres'
+    };
+  }
+
+  if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
+    return {
+      isValid: false,
+      message: 'La contraseña debe contener al menos una minúscula, una mayúscula y un número'
+    };
+  }
+
+  return { isValid: true };
+};
+
 // Registro de usuario (ahora envía código de verificación)
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -42,11 +68,12 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Validar longitud de contraseña
-    if (password.length < 8) {
+    // Validar contraseña fuerte
+    const passwordValidation = validateStrongPassword(password);
+    if (!passwordValidation.isValid) {
       res.status(400).json({
         success: false,
-        message: 'La contraseña debe tener al menos 8 caracteres'
+        message: passwordValidation.message
       });
       return;
     }
@@ -497,6 +524,237 @@ export const getCurrentUser = async (req: Request, res: Response): Promise<void>
 
   } catch (error: any) {
     console.error('Error obteniendo usuario actual:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Cambiar contraseña del usuario
+export const changePassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    // Validar que el usuario esté autenticado
+    if (!req.user) {
+      res.status(401).json({
+        success: false,
+        message: 'Usuario no autenticado'
+      });
+      return;
+    }
+
+    // Validar campos requeridos
+    if (!currentPassword || !newPassword) {
+      res.status(400).json({
+        success: false,
+        message: 'Contraseña actual y nueva contraseña son requeridas',
+        requiredFields: ['currentPassword', 'newPassword']
+      });
+      return;
+    }
+
+    // Validar contraseña fuerte
+    const passwordValidation = validateStrongPassword(newPassword);
+    if (!passwordValidation.isValid) {
+      res.status(400).json({
+        success: false,
+        message: passwordValidation.message
+      });
+      return;
+    }
+
+    // Validar que las contraseñas sean diferentes
+    if (currentPassword === newPassword) {
+      res.status(400).json({
+        success: false,
+        message: 'La nueva contraseña debe ser diferente a la actual'
+      });
+      return;
+    }
+
+    // Buscar usuario en la base de datos
+    const user = await User.findByPk(req.user.userId);
+
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado'
+      });
+      return;
+    }
+
+    // Verificar contraseña actual
+    const isValidCurrentPassword = await user.checkPassword(currentPassword);
+    
+    if (!isValidCurrentPassword) {
+      res.status(400).json({
+        success: false,
+        message: 'La contraseña actual es incorrecta'
+      });
+      return;
+    }
+
+    // Actualizar contraseña
+    user.password = newPassword;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Contraseña cambiada exitosamente'
+    });
+
+  } catch (error: any) {
+    console.error('Error cambiando contraseña:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Solicitar restablecimiento de contraseña
+export const forgotPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email } = req.body;
+
+    // Validar campo requerido
+    if (!email) {
+      res.status(400).json({
+        success: false,
+        message: 'Email es requerido',
+        requiredFields: ['email']
+      });
+      return;
+    }
+
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      res.status(400).json({
+        success: false,
+        message: 'Formato de email inválido'
+      });
+      return;
+    }
+
+    // Normalizar email
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Buscar usuario por email
+    const user = await User.findOne({ where: { email: normalizedEmail } });
+
+    // Por seguridad, siempre respondemos exitosamente aunque el usuario no exista
+    // Esto previene que atacantes puedan enumerar emails válidos
+    if (!user) {
+      res.json({
+        success: true,
+        message: 'Si el email existe en nuestro sistema, recibirás un código de restablecimiento'
+      });
+      return;
+    }
+
+    // Generar código de restablecimiento
+    const resetCode = await user.setPasswordResetCode();
+
+    // Enviar email con el código
+    const emailSent = await EmailService.sendPasswordResetEmail({
+      to: user.email,
+      name: user.name,
+      verificationCode: resetCode
+    });
+
+    if (!emailSent) {
+      console.error('Error enviando email de restablecimiento para:', user.email);
+      // No revelamos el error específico por seguridad
+    }
+
+    res.json({
+      success: true,
+      message: 'Si el email existe en nuestro sistema, recibirás un código de restablecimiento',
+      emailSent // Solo para debugging, en producción podrías omitir esto
+    });
+
+  } catch (error: any) {
+    console.error('Error en forgot password:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Restablecer contraseña con código
+export const resetPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email, code, newPassword } = req.body;
+
+    // Validar campos requeridos
+    if (!email || !code || !newPassword) {
+      res.status(400).json({
+        success: false,
+        message: 'Email, código y nueva contraseña son requeridos',
+        requiredFields: ['email', 'code', 'newPassword']
+      });
+      return;
+    }
+
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      res.status(400).json({
+        success: false,
+        message: 'Formato de email inválido'
+      });
+      return;
+    }
+
+    // Validar contraseña fuerte
+    const passwordValidation = validateStrongPassword(newPassword);
+    if (!passwordValidation.isValid) {
+      res.status(400).json({
+        success: false,
+        message: passwordValidation.message
+      });
+      return;
+    }
+
+    // Normalizar email
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Buscar usuario por email
+    const user = await User.findOne({ where: { email: normalizedEmail } });
+
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado'
+      });
+      return;
+    }
+
+    // Intentar restablecer la contraseña con el código
+    const resetSuccessful = await user.resetPasswordWithCode(code.toString().toUpperCase(), newPassword);
+
+    if (!resetSuccessful) {
+      res.status(400).json({
+        success: false,
+        message: 'Código inválido o expirado'
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      message: 'Contraseña restablecida exitosamente'
+    });
+
+  } catch (error: any) {
+    console.error('Error restableciendo contraseña:', error);
     res.status(500).json({
       success: false,
       message: 'Error interno del servidor',

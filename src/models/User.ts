@@ -18,10 +18,12 @@ interface UserAttributes {
     isEmailVerified: boolean;
     emailVerificationCode: string | null;
     emailVerificationExpires: Date | null;
+    passwordResetCode: string | null;
+    passwordResetExpires: Date | null;
 }
 
 // Definir los atributos de creación (sin id y con campos opcionales)
-interface UserCreationAttributes extends Optional<UserAttributes, 'id' | 'bio' | 'habits' | 'profilePhoto' | 'isEmailVerified' | 'emailVerificationCode' | 'emailVerificationExpires'> {}
+interface UserCreationAttributes extends Optional<UserAttributes, 'id' | 'bio' | 'habits' | 'profilePhoto' | 'isEmailVerified' | 'emailVerificationCode' | 'emailVerificationExpires' | 'passwordResetCode' | 'passwordResetExpires'> {}
 
 // Definir la clase del modelo
 class User extends Model<UserAttributes, UserCreationAttributes> implements UserAttributes {
@@ -40,6 +42,8 @@ class User extends Model<UserAttributes, UserCreationAttributes> implements User
     public isEmailVerified!: boolean;
     public emailVerificationCode!: string | null;
     public emailVerificationExpires!: Date | null;
+    public passwordResetCode!: string | null;
+    public passwordResetExpires!: Date | null;
 
     // Timestamps opcionales
     public readonly createdAt!: Date;
@@ -110,6 +114,59 @@ class User extends Model<UserAttributes, UserCreationAttributes> implements User
         this.emailVerificationCode = null;
         this.emailVerificationExpires = null;
         await this.save();
+    }
+
+    // Establecer código de restablecimiento de contraseña
+    public async setPasswordResetCode(): Promise<string> {
+        const code = this.generateEmailVerificationCode(); // Reutilizamos el mismo generador
+        const hashedCode = await bcrypt.hash(code, 10);
+        
+        this.passwordResetCode = hashedCode;
+        this.passwordResetExpires = new Date(Date.now() + 30 * 60 * 1000); // 30 minutos
+        
+        await this.save();
+        return code; // Retornamos el código sin hashear para enviarlo por email
+    }
+
+    // Verificar código de restablecimiento de contraseña
+    public async verifyPasswordResetCode(inputCode: string): Promise<boolean> {
+        if (!this.passwordResetCode || !this.passwordResetExpires) {
+            return false;
+        }
+
+        // Verificar si el código ha expirado
+        if (new Date() > this.passwordResetExpires) {
+            await this.clearPasswordResetCode();
+            return false;
+        }
+
+        // Verificar el código
+        const isValid = await bcrypt.compare(inputCode.toUpperCase(), this.passwordResetCode);
+        
+        return isValid;
+    }
+
+    // Limpiar código de restablecimiento de contraseña
+    public async clearPasswordResetCode(): Promise<void> {
+        this.passwordResetCode = null;
+        this.passwordResetExpires = null;
+        await this.save();
+    }
+
+    // Restablecer contraseña con código
+    public async resetPasswordWithCode(inputCode: string, newPassword: string): Promise<boolean> {
+        const isValidCode = await this.verifyPasswordResetCode(inputCode);
+        
+        if (!isValidCode) {
+            return false;
+        }
+
+        // Cambiar la contraseña
+        this.password = newPassword;
+        await this.clearPasswordResetCode();
+        await this.save();
+        
+        return true;
     }
 }
 
@@ -224,6 +281,16 @@ export default (sequelize: Sequelize) => {
                 defaultValue: null,
             },
             emailVerificationExpires: {
+                type: DataTypes.DATE,
+                allowNull: true,
+                defaultValue: null,
+            },
+            passwordResetCode: {
+                type: DataTypes.STRING,
+                allowNull: true,
+                defaultValue: null,
+            },
+            passwordResetExpires: {
                 type: DataTypes.DATE,
                 allowNull: true,
                 defaultValue: null,

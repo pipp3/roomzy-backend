@@ -193,4 +193,95 @@ export class EmailService {
             return false;
         }
     }
+
+    // Método para enviar email de restablecimiento de contraseña
+    static async sendPasswordResetEmail({ to, name, verificationCode }: EmailVerificationData): Promise<boolean> {
+        try {
+            const mailOptions = {
+                from: `"Roomzy" <${process.env.FROM_EMAIL || 'noreply@roomzy.com'}>`,
+                to: to,
+                subject: '🔐 Restablece tu contraseña - Roomzy',
+                html: this.getPasswordResetEmailTemplate(name, verificationCode),
+            };
+
+            const info = await this.transporter.sendMail(mailOptions);
+            console.log('✅ Email de restablecimiento enviado exitosamente a Mailtrap:', info.messageId);
+            return true;
+        } catch (error) {
+            console.error('❌ Error enviando email de restablecimiento:', error);
+            return false;
+        }
+    }
+
+    private static getPasswordResetEmailTemplate(name: string, code: string): string {
+        return `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>Restablece tu contraseña - Roomzy</title>
+            <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .header { text-align: center; margin-bottom: 30px; }
+                .code-box { 
+                    background: #fff5f5; 
+                    border: 2px dashed #dc3545; 
+                    padding: 20px; 
+                    text-align: center; 
+                    margin: 20px 0; 
+                    border-radius: 8px;
+                }
+                .code { 
+                    font-size: 32px; 
+                    font-weight: bold; 
+                    color: #dc3545; 
+                    letter-spacing: 5px; 
+                    margin: 10px 0;
+                }
+                .warning {
+                    background: #fff3cd;
+                    border-left: 4px solid #ffc107;
+                    padding: 15px;
+                    margin: 20px 0;
+                    border-radius: 4px;
+                }
+                .footer { margin-top: 30px; font-size: 14px; color: #666; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>🔐 Restablece tu contraseña</h1>
+                </div>
+                
+                <p>Hola <strong>${name}</strong>,</p>
+                
+                <p>Hemos recibido una solicitud para restablecer la contraseña de tu cuenta en Roomzy.</p>
+                
+                <div class="code-box">
+                    <p><strong>Tu código de restablecimiento es:</strong></p>
+                    <div class="code">${code}</div>
+                    <p><small>Este código expira en 30 minutos</small></p>
+                </div>
+                
+                <p>Usa este código en la aplicación para crear una nueva contraseña.</p>
+                
+                <div class="warning">
+                    <p><strong>⚠️ Importante:</strong></p>
+                    <ul>
+                        <li>Si no solicitaste este restablecimiento, ignora este email</li>
+                        <li>Nunca compartas este código con nadie</li>
+                        <li>El código expira en 30 minutos por seguridad</li>
+                    </ul>
+                </div>
+                
+                <div class="footer">
+                    <p><small>Este es un email automático, por favor no respondas a este mensaje.</small></p>
+                </div>
+            </div>
+        </body>
+        </html>
+        `;
+    }
 } 

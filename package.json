@@ -5,14 +5,17 @@
   "main": "server.js",
   "scripts": {
     "start": "nodemon server.js",
-    "dev": "nodemon src/server.ts"
+    "dev": "nodemon src/server.ts",
+    "migrate:password-reset": "ts-node src/scripts/add-password-reset-fields.ts"
   },
   "author": "Felipe Muñoz V.",
   "license": "ISC",
   "dependencies": {
+    "@types/cors": "^2.8.18",
     "@types/jsonwebtoken": "^9.0.9",
     "@types/nodemailer": "^6.4.17",
     "bcrypt": "^6.0.0",
+    "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
