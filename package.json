@@ -7,7 +7,8 @@
     "start": "nodemon server.js",
     "dev": "nodemon src/server.ts",
     "build": "tsc",
-    "migrate:password-reset": "ts-node src/scripts/add-password-reset-fields.ts"
+    "migrate:password-reset": "ts-node src/scripts/add-password-reset-fields.ts",
+    "seed:users": "ts-node src/scripts/seed-users.ts"
   },
   "author": "Felipe Muñoz V.",
   "license": "ISC",

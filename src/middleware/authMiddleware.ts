@@ -108,4 +108,28 @@ export const optionalAuth = (req: Request, res: Response, next: NextFunction): v
         // Si hay error, simplemente continúa sin usuario
         next();
     }
+};
+
+/**
+ * Middleware específico para verificar rol de administrador
+ */
+export const requireAdmin = (req: Request, res: Response, next: NextFunction): void => {
+    if (!req.user) {
+        res.status(401).json({
+            success: false,
+            message: 'Usuario no autenticado'
+        });
+        return;
+    }
+
+    if (req.user.role !== 'admin') {
+        res.status(403).json({
+            success: false,
+            message: 'Acceso denegado. Se requieren permisos de administrador.',
+            userRole: req.user.role
+        });
+        return;
+    }
+
+    next();
 }; 

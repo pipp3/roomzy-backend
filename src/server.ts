@@ -5,6 +5,7 @@ import sequelize from './config/database';
 import { initModels, syncDatabase } from './models';
 import authRoutes from './routes/authRoutes';
 import userRoutes from './routes/userRoutes';
+import adminRoutes from './routes/adminRoutes';
 import { EmailService } from './services/emailService';
 
 const app = express();
@@ -14,7 +15,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors({
     origin: process.env.FRONTEND_URL || 'http://localhost:3001',
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
@@ -23,6 +24,7 @@ app.use(express.json());
 // Rutas
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
+app.use('/api/v1/admin', adminRoutes);
 
 async function initialize(){
     try{
