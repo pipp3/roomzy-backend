@@ -1,20 +1,25 @@
 import { Router } from 'express';
-import { getUserProfile, updateUserProfile, deleteUser } from '../controllers/userController';
+import { getUserProfile, updateUserProfile, updateProfilePhoto, getUserProfilePhoto } from '../controllers/userController';
+import { authenticateToken, requireEmailVerified } from '../middleware/authMiddleware';
+import { uploadProfilePhoto, handleMulterError } from '../middleware/uploadMiddleware';
 
 const router = Router();
 
-// Obtener perfil del usuario autenticado
-// router.get('/profile', authenticateToken, getUserProfile);
+// Rutas protegidas que requieren autenticación y email verificado
+router.get('/profile', authenticateToken, requireEmailVerified, getUserProfile);
+router.patch('/profile', authenticateToken, requireEmailVerified, updateUserProfile);
 
-// Actualizar perfil del usuario autenticado (actualización parcial)
-// router.patch('/profile', authenticateToken, updateUserProfile);
+// Rutas específicas para foto de perfil
+router.get('/profile/photo', authenticateToken, requireEmailVerified, getUserProfilePhoto);
+router.patch('/profile/photo', 
+    authenticateToken, 
+    requireEmailVerified, 
+    uploadProfilePhoto, 
+    handleMulterError, 
+    updateProfilePhoto
+);
 
-// Eliminar cuenta del usuario autenticado
-// router.delete('/profile', authenticateToken, deleteUser);
-
-// Rutas temporales sin autenticación (para testing)
-router.get('/profile/:id', getUserProfile);
-router.patch('/profile/:id', updateUserProfile);
-router.delete('/:id', deleteUser);
+// Nota: La eliminación de cuenta solo puede ser realizada por administradores
+// a través de las rutas administrativas por motivos de seguridad
 
 export default router; 
